@@ -1,0 +1,392 @@
+#+TITLE: The Nebula file server
+
+* Introduction
+
+  *Nebula* is a content-addressable file store that uses a capability
+  model for security. This particular version is a development
+  demonstrator that aims to vet the core ideas; it is built on
+  rapidly-prototypable but unscalable practices.
+
+** What problem are you trying to solve?
+
+   Users have data: they want to be able to keep track of revisions to
+   this data, and they would like to be able to share this data with
+   other users. Users would also like the ability to cluster into
+   groups to share and collaborate on this data.
+
+   Secondary objectives are to build real world experience designing,
+   implementing, and operating capability systems; and to characterise
+   the behaviour of capability systems in the real world.
+
+** What are the characteristics of a solution?
+
+   1. Users must be able to upload and retrieve data.
+   2. Users must be able to view the history of their data.
+   3. Users should be able to share data with other users.
+   4. A user should be able to refer to a piece of data as a leaf in a
+      history tree, as a node in the tree, or as an isolated snapshot
+      with the history information stripped.
+   5. Users should have some assurance as to the integrity and
+      confidentiality of their data: one user should not be able to
+      read another user's file unless permission has been explicitly
+      granted *or* unless the other user has their own copy of that
+      data.
+
+** Towards a solution
+
+   The pieces of such a solution are described below.
+
+*** Data blobs
+
+   Data is referred to by the SHA-256 hash of the contents of the
+   file. For technical reasons, this could be prefixed to reside in
+   some directory tree structure. There are two options for this: use
+   a prefix (such as the first *n* bytes of the ID, or where each byte
+   is a directory. Example:
+
+   Example: given the SHA-256 ID
+
+#+BEGIN_EXAMPLE
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+#+END_EXAMPLE
+
+
+   The first solution (with a prefix of 4) yields the path
+
+#+BEGIN_EXAMPLE
+0001/02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+#+END_EXAMPLE
+
+   The second yields
+
+#+BEGIN_EXAMPLE
+00/01/02/03/04/05/06/07/08/09/0a/0b/0c/0d/0e/0f/10/11/12/13/14/15/16/17/\
+18/19/1a/1b/1c/1d/1e/1f
+#+END_EXAMPLE
+
+    From a file system performance perspective, the two options are
+    equally difficult to implement, and the latter will provide better
+    performance. As data will always be referenced by a SHA-256 hash
+    (a constraint that **must** be enforced in the code), this should
+    not be a problem.
+
+*** References to blobs
+
+Users directly interacting with blobs presents two problems:
+
+1. Information leakage: if Alice wants to determine if someone already
+   has a copy of some data, she attempts to read its SHA-256
+   digest. The server will return the data if she has it. This data is
+   of no consequence to Alice, as she likely already had a copy of the
+   data to produce the hash.
+2. Managing data is more difficult: in the case where a user asks the
+   server to delete a file that multiple users have, the server has no
+   way to determine what other users might have the data. One user can
+   then remove data that other users may still wish to
+   retain. Alternatively, the server might refuse to delete this data,
+   which means users have no way to remove data from the system.
+
+   The solution is to only access blob IDs in the software, and to
+   provide users with UUIDs to reference their data. A UUID contains
+
+   + the ID
+   + the referenced object ID (see below, this may be a SHA-256 ID or
+     another UUID)
+   + metadata
+   + the parent UUID
+   + UUIDs of any children
+
+   In order to provide useful access control, a reference may be
+   a *proxy* reference: that is, it may refer to another blob
+   reference. This means that a user can grant revocable access to the
+   data *without* jeopardizing their own access.
+
+   Therefore, to know an ID is to have access to that ID. For this
+   reason, users can only see the metadata and none of the IDs. The
+   system needs an API that can traverse the history tree without
+   exposing these IDs to users. Proxy objects either need to be
+   presented with no history information (empty parent and children),
+   or the entire history needs to be proxied. Similarly, a revocation
+   API needs to be able to take into account that the entire history
+   tree may be proxied.
+
+   This data must be persisted, such as a via a database.
+
+   This reference is named an *entry*. This reference is the only
+   interface users have with blobs. A user should never see the target
+   of an entry, nor should they be able to determine whether an ID was
+   proxied.
+
+*** Named histories
+
+    Constantly referring to a UUID for file revisions is something
+    that users will find awkward. A useful abstraction is a named
+    history: presenting a single reference to a history tree that
+    always provides the newest copy of some data, while still allowing
+    users to traverse the history. This abstraction needs to pair some
+    notion of the owner with a name of their choosing; this pairing is
+    termed a *file*. Writing to a file creates a new entry with the
+    parent set to the file's current reference, and the file's
+    reference is updated to the new entry's ID.
+
+    This might best be handled by the application using Nebula, which
+    can translated the entry to an appropriate storage metaphor.
+
+*** Users
+
+    Users will be identified by a UUID, as will collections of users
+    (termed a *group*). This allows groups and users to be
+    interchangeable.
+
+    *Challenge*: how to deal with removing a user from a group? To know
+    an ID is to have access to the ID, so new IDs will need to be
+    generated for each object owned by a group; this change will need to
+    be communicated to the group. Groups are not granular at this time:
+    access to a group ID means all users can read or write entries and
+    files. Group leadership will probably belong to a single user. This a
+    subject that should be considered for revision in future.
+
+    The subject of groups and user management is also probably best
+    handled by the application using Nebula, allowing them to
+    translate the idea of an owner to an appropriate metaphor.
+
+** The API
+
+   + create, update, delete entries
+     + note that garbage collection will need to be done when a user
+       entry is removed: if no other entry refers to a blob, that blob
+       should be removed from the store. If an entry is removed, all
+       entries proxied to that entry should be removed.
+     + update creates a new entry with the parent of the new entry and
+       the children field of the parent updated appropriately. A check
+       should be done to ensure that the blob has actually changed before
+       assigning a new entry.
+   + +create, update, delete, list files+
+   + grant or revoke access
+     + this needs to account for the need to proxy histories
+   + +group creation, inviting, transfer of ownership+
+
+** A demo use case
+
+   A demo of the Nebula system would be to build an HTTP front end
+   that uses [[https://codemirror.org/][Codemirror]] to implement a
+   collaborative editor.
+
+** Sync
+
+   At some point it would be advantageous to sync data. Armstrong
+   [[http://joearms.github.io/2015/03/12/The_web_of_names.html][proposes]] the use of a DHT. However, implementing sync in this
+   manner means that any participating node has access to all the
+   blobs where no guarantee is made that peers are securing this data;
+   this presents a large hole for data leakage. Participating
+   nodes **must** have some sort of authentication. The most
+   straight-forward mechanism for this is to communicate over an
+   interface such as [[https://kyleisom.net/projects/schannel/][schannel]] with mutual authentication. This brings
+   the complexity of requiring a signature authority trusted by all
+   users. A synchronisation mechanism must operate in a hostile
+   environment:
+
+   + At the core, user data *must* be protected: just as users expect
+     their data to remain secure on the single node system, so too should
+     their data be secured across all nodes.
+   + A participant should expect that some participants are actively
+     trying to exploit data leakage.
+   + Participants must have strong mutual authentication, which implies
+     strong identity. Nodes may be pseudonymous, but they cannot be fully
+     anonymous. Peer reputation is a necessity.
+   + Communications **must** occur over a secure channel (see
+     *Cryptography Engineering* or `schannel`).
+   + Alternate (not schannel) alternatives should be explored. One
+     alternative is hosts identified by a UUID and using remote
+     attestation or another form of TPM-based
+     authentication. Particularly interesting would be decentralised
+     authentication and attestation, but it is difficult to see how trust
+     could be bootstrapped this way.
+
+* Prerequisites
+
+  You will need a Lisp interpreter and [[http://quicklisp.org/][Quicklisp]].
+
+  You will need a Postgres database running; the credentials should be
+  in an alist in the file ~$HOME/nebula.lisp~. This alist should look
+  like
+
+#+BEGIN_EXAMPLE
+((:DB-HOST "localhost")    ;; hostname of database
+ (:DB-NAME "testdb")       ;; database name
+ (:DB-PASS "surveiller")   ;; password
+ (:DB-PORT 5432)           ;; port
+ (:DB-USER "focault"))     ;; username
+#+END_EXAMPLE
+
+  As it is expected that this will run on ~localhost~, no SSL
+  connections are used.
+
+  The database will need to exist and be writeable by the user.
+
+  This code should be stored in the Quicklisp ~local-projects~
+  directory so that it may be loaded with Quicklisp.
+
+* Running
+
+  Before running the server, the database must be created. In the
+  future, this will be done automatically; in the meantime:
+  To start the server, run
+
+#+BEGIN_EXAMPLE
+> sbcl --eval '(ql:quickload :nebula)'
+> (start)
+#+END_EXAMPLE
+
+  Nebula will create any tables it needs on startup.
+
+  If you visit [[http://localhost:3000/]], you will be presented with an
+  index page that lists the current endpoints.
+
+* Endpoints
+
+The examples here assume a file server running on localhost.
+
+** Upload new blob
+
+   =POST /entry=
+
+   This takes a "file" parameter; right now this is due to a
+   limitation in my understanding of how Clojure's web libraries work.
+   Eventually, this will be the request body and not a form.
+
+#+BEGIN_EXAMPLE
+> cat file.txt
+> *** Hello, world.
+> curl -F file=@file.txt localhost:3000/entry
+#+END_EXAMPLE
+
+   The endpoint will return the UUID of the file entry if the blob was
+   uploaded successfully. This UUID is the only way for the user to
+   access the file.
+
+** Retrieve a blob
+
+  =GET /entry/:uuid=
+
+  This retrieves the blob referenced by UUID, if such an entry
+  exists. For example, if the upload returned the UUID
+  2181203d-7c99-4cf3-8461-f0702565819b,
+
+#+BEGIN_EXAMPLE
+> curl localhost:3000/entry/2181203d-7c99-4cf3-8461-f0702565819b
+*** Hello, world
+#+END_EXAMPLE
+
+  would return the contents of the file.
+
+  Files are currently returned as /application\/octet-stream/ right
+  now. Some thought needs to be given to MIME-type handling (or
+  whether that's something the file server needs to worry about.
+
+** Update a blob
+
+   =POST /entry/:uuid=
+
+   This uploads a new blob, signifying that it is a modified version
+   of the entry referenced by the UUID. This will upload the new blob
+   and set its parent to UUID.
+
+#+BEGIN_EXAMPLE
+> cat file.txt
+*** Hello, world!
+> curl -X POST localhost:3000/entry/32805045-857e-451f-bf8a-f32199376a3f
+32805045-857e-451f-bf8a-f32199376a3f
+#+END_EXAMPLE
+
+   On success, it will return the UUID for the child entry.
+
+** Proxy an entry
+
+   =GET /entry/:uuid/proxy=
+
+   This creates a proxied file entry: it can be shared to other
+   users. When access by those users should then be restricted, this
+   proxy entry can be deleted without removing the owner's access to
+   the file.
+
+#+BEGIN_EXAMPLE
+> curl localhost:3000/entry/32805045-857e-451f-bf8a-f32199376a3f/proxy
+9b894ab7-0a16-44be-851f-74e6524ca575
+#+END_EXAMPLE
+
+   On success, it returns the UUID for the proxy entry.
+
+** Delete an entry
+
+   =DELETE /entry/:uuid=
+
+   This removes the UUID referenced by UUID. Garbage collection is done to
+   remove any stale references or orphaned proxy entries.
+
+#+BEGIN_EXAMPLE
+curl -X DELETE localhost:3000/entry/9b894ab7-0a16-44be-851f-74e6524ca575
+#+END_EXAMPLE
+
+** Retrieve entry information
+
+   =GET /entry/:uuid/info=
+
+   This retrieves information about an entry as a JSON-encoded dictionary.
+
+#+BEGIN_EXAMPLE
+> curl localhost:3000/entry/9b894ab7-0a16-44be-851f-74e6524ca575/info
+{
+    "children": null,
+    "id": "9b894ab7-0a16-44be-851f-74e6524ca575",
+    "metadata": {
+        "created": 1426799481
+    },
+    "parent": null
+}
+#+END_EXAMPLE
+
+** Retrieve entry lineage
+
+   =GET /entry/:uuid/lineage=
+
+   A lineage is the set of entries representing a succession of parent
+   entries. The first entry is the UUID requested; what follows is a list
+   of parents.
+
+   Consider the following sequence:
+   + A file is uploaded and assigned the ID 53ca9f30-4de6-4661-9e5a-e57bc78a873a
+   + The file is changed and POSTed to
+     /entry/53ca9f30-4de6-4661-9e5a-e57bc78a873a, returning the UUID
+     9cb205d0-e7e5-4b14-9307-5ab70841786d
+   + The file is changed again, and POSTed to
+     /entry/9cb205d0-e7e5-4b14-9307-5ab70841786d returning the UUID
+     6c7328cd-a7f1-4b90-8b08-d3d59b40df8f
+
+   The following example demonstrates returning the file's lineage:
+
+#+BEGIN_EXAMPLE
+["6c7328cd-a7f1-4b90-8b08-d3d59b40df8f"
+,"9cb205d0-e7e5-4b14-9307-5ab70841786d"
+,"53ca9f30-4de6-4661-9e5a-e57bc78a873a"]
+#+END_EXAMPLE
+   
+* TODOs, thoughts, and considerations
+
+  This isn't even an alpha right now. This is a development
+  prototype. Things aren't expected to work quite right yet.
+
+  + The interface is horrendous. The API is currently a very minimal
+    version that either returns the data being requested, or returns
+    "Not Found". The API should probably be JSON (or maybe transit?).
+  + When an entry is deleted, Nebula doesn't currently check whether the
+    parent still exists. The parent should probably be set to nil.
+  + How cool would it be to have deltas? What would deltas look like?
+    I imagine the API would be "/entry/:uuid/delta". GETting this
+    would return the delta from the parent, while POSTing (or PUTting)
+    would create a new entry with this delta applied.
+  + Should some sort of capability be required to store files? If this
+    is a UUID representing access rights, how should it be provided?
+  + How should quotas be applied? Should the metadata contain the file
+    size? Should owner be supplied in the metadata, or otherwise
+    attached to the entry?

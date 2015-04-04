@@ -1,0 +1,66 @@
+(in-package #:nebula)
+
+(defvar *db-creds-path* (merge-pathnames
+			      (user-homedir-pathname)
+			      "nebula.lisp"))
+
+(defvar *db-creds*)
+
+(defun load-credentials (&key (path *db-creds-path*))
+  (let ((creds (with-open-file (f path)
+		 (with-standard-io-syntax
+		   (read f)))))
+    (unless (null creds)
+      (setf *db-creds* creds))))
+
+(defmacro cred-value (k)
+  `(value-for *db-creds* ,k))
+
+(defun connect ()
+  (when (boundp '*db-creds*)
+    (postmodern:connect-toplevel (cred-value :db-name)
+				 (cred-value :db-user)
+				 (cred-value :db-pass)
+				 (cred-value :db-host)
+				 :port (cred-value :db-port))
+    (unless (postmodern:table-exists-p 'entry)
+      (postmodern:create-table 'entry)
+      t)))
+
+(defun store-entry (ent)
+  (when (entry-p ent)
+    (postmodern:insert-dao ent)))
+
+(defun select-by-target (identifier)
+  (postmodern:select-dao 'entry (:= 'target identifier)))
+
+(defun garbage-collect-entry (path entry)
+  (when (hash-p (entry-target entry))
+      (let ((others (select-by-target (entry-target entry))))
+	(when (zerop (length others))
+	  (delete-blob path (entry-target entry))))))
+
+(defun garbage-collect-references (path entry)
+  (dolist (ent (select-by-target (entry-uuid entry)))
+    (garbage-collect-references ent)
+    (postmodern:delete-dao ent)))
+
+(defun clear-children (entry)
+  (let ((target (entry-uuid entry)))
+    (dolist (ent (postmodern:select-dao 'entry (:= 'parent target)))
+      (setf (entry-parent ent) "")
+      (postmodern:update-dao ent))))
+
+(defun lookup-entry (uuid)
+  (when (uuid-p uuid)
+    (postmodern:get-dao 'entry uuid)))
+
+(defun delete-entry (path uuid)
+  (let ((entry (lookup-entry uuid)))
+    (unless (null entry)
+      (postmodern:delete-dao entry)
+      (garbage-collect-entry path entry)
+      (garbage-collect-references entry)
+      (clear-children entry))))
+
+
