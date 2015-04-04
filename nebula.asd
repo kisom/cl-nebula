@@ -6,11 +6,14 @@
   :author "K. Isom <kyle@metacircular.net>"
   :license "MIT"
   :depends-on (#:cl-ppcre
+	       #:cl-who
 	       #:flexi-streams
 	       #:ironclad
 	       #:local-time
+	       #:log4cl
 	       #:postmodern
-	       ;;#:restas
+	       #:swank
+	       #:restas
 	       #:st-json
 	       #:uuid)
   :components ((:file "package")
@@ -18,5 +21,6 @@
 	       (:file "blob")
 	       (:file "entry")
 	       (:file "db")
-               (:file "nebula")))
+               (:file "nebula")
+	       (:file "www")))
 

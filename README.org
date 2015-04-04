@@ -212,6 +212,7 @@ Users directly interacting with blobs presents two problems:
   like
 
 #+BEGIN_EXAMPLE
+;;; Example names taken from the postmodern docs.
 ((:DB-HOST "localhost")    ;; hostname of database
  (:DB-NAME "testdb")       ;; database name
  (:DB-PASS "surveiller")   ;; password
@@ -235,7 +236,7 @@ Users directly interacting with blobs presents two problems:
 
 #+BEGIN_EXAMPLE
 > sbcl --eval '(ql:quickload :nebula)'
-> (start)
+> (nebula:start)
 #+END_EXAMPLE
 
   Nebula will create any tables it needs on startup.

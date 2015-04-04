@@ -58,7 +58,8 @@ to the parent.n"
       (load-history entry))))
 
 (defun remove-entry (uuid)
-  (delete-entry *nebula-path* uuid))
+  (delete-entry *nebula-path* uuid)
+  (null (lookup-entry uuid)))
 
 (defun build-proxied (remaining proxied)
   (if (null remaining)

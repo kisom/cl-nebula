@@ -1,5 +1,6 @@
 ;;;; package.lisp
 
-(defpackage #:nebula
-  (:use #:cl))
+(restas:define-module #:nebula
+  (:use #:cl)
+  (:export :startup))
 
