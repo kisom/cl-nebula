@@ -31,16 +31,10 @@
 		 (subseq uuid 16 20) "-"
 		 (subseq uuid 20))))
 
-(defmacro defmatcher (name regexp)
-  "Define a predicate that compares its input to the regular
-expressions, return true if a match is found."
-  `(defun ,name (possible-match)
-     (not
-      (null
-       (ppcre:scan ,regexp possible-match)))))
-
-(defmatcher hash-p "^[a-f0-9]{64}")
-(defmatcher uuid-p "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$")
+(defun hash-p (possible-match) (ppcre:scan "^[a-f0-9]{64}" possible-match))
+(defun uuid-p (possible-match)
+  (ppcre:scan "^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+	     possible-match))
 
 (defun valid-parent-p (possible-parent)
   (or (null   possible-parent)
