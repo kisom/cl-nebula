@@ -1,11 +1,10 @@
 (in-package #:nebula)
 
 (defvar *db-creds-path* (merge-pathnames
-			      (user-homedir-pathname)
-			      "nebula.lisp"))
+			 (user-homedir-pathname)
+			 "nebula.lisp"))
 
 (defvar *db-creds*)
-(defvar *database*)
 
 (defun load-credentials (&key (path *db-creds-path*))
   (let ((creds (with-open-file (f path)
@@ -43,17 +42,17 @@
        ,@body)))
 
 (defun-with-db store-entry (ent)
-    (when (entry-p ent)
-      (postmodern:insert-dao ent)))
+  (when (entry-p ent)
+    (postmodern:insert-dao ent)))
 
 (defun select-by-target (identifier)
   (postmodern:select-dao 'entry (:= 'target identifier)))
 
 (defun garbage-collect-entry (path entry)
   (when (hash-p (entry-target entry))
-      (let ((others (select-by-target (entry-target entry))))
-	(when (zerop (length others))
-	  (delete-blob path (entry-target entry))))))
+    (let ((others (select-by-target (entry-target entry))))
+      (when (zerop (length others))
+	(delete-blob path (entry-target entry))))))
 
 (defun garbage-collect-references (entry)
   (dolist (ent (select-by-target (entry-uuid entry)))
