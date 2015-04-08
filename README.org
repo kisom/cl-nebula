@@ -230,9 +230,15 @@ Users directly interacting with blobs presents two problems:
 
 * Using
 
-  Nebula is a library for exploring this idea of a 
+  Nebula is a library for exploring this idea of a filestore.
 
-  Nebula will create any tables it needs on startup.
+  It should be cloned into the Quicklisp local-projects directory;
+  then it may included as a dependency or loaded with
+  ~(ql:quickload :nebula)~.
+
+  Once the credentials file is created, the package should be
+  initialised with ~(nebula:initialize)~. It will create any tables it
+  needs on startup.
 
 * TODOs, thoughts, and considerations
 
