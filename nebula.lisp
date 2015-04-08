@@ -7,9 +7,10 @@
 (defvar *nebula-path* "nebula-store")
 
 (defun set-store-path (path)
+  "Provide an alternative path for the blob store."
   (setq *nebula-path* path))
 
-(defun resolve-target (uuid)
+(defun retrieve (uuid)
   "Given a UUID, follow its targets all the way to the underlying
 blob."
   (let ((entry (lookup-entry uuid)))
@@ -20,23 +21,23 @@ blob."
 	  ((uuid-p target) (resolve-target target))
 	  (:t nil))))))
 
-(defun upload-blob (data &key (parent nil))
-  "Upload a blob of data, possibly under a parent entry."
-  (let* ((hash  (write-blob *nebula-path* data))
-	 (entry (make-entry hash parent)))
-    (unless (null entry)
-      (store-entry entry)
-      (entry-uuid entry))))
+(defun store (data &key parent)
+  "Store some data, possibly under a parent entry."
+  (when (valid-parent-p parent)
+    (let* ((hash  (write-blob *nebula-path* data))
+	   (entry (make-entry hash parent)))
+      (unless (null entry)
+	(store-entry entry)
+	(entry-uuid entry)))))
 
-(defun entry-info (uuid)
+(defun info (uuid)
   "Retrieve metadata about an entry."
   (let ((entry (lookup-entry uuid)))
     (unless (null entry)
-      (st-json:write-json-to-string
-       (st-json:jso
-	"id"      (entry-uuid entry)
-	"created" (entry-created entry)
-	"parent"  (entry-parent entry))))))
+      (pairlis '(:id :created :parent)
+	       (list (entry-uuid entry)
+		     (entry-created entry)
+		     (entry-parent entry))))))
 
 (defun proxy (uuid)
   "Proxy a single entry."
@@ -53,16 +54,18 @@ blob."
 	(when (entry-p parent)
 	  (cons (entry-uuid entry) (load-history parent))))))
 
-(defun entry-history (uuid)
+(defun lineage (uuid)
   "Return a list of entry IDs of this entry's lineage, from this entry
-to the parent.n"
+to the parent."
   (let ((entry (lookup-entry uuid)))
     (unless (null entry)
       (load-history entry))))
 
-(defun remove-entry (uuid)
-  (delete-entry *nebula-path* uuid)
-  (null (lookup-entry uuid)))
+(defun expunge (uuid)
+  "Expunge the entry named by UUID from the system, garbage collecting
+as required."
+  (when (uuid-p uuid)
+    (delete-entry *nebula-path* uuid)))
 
 (defun build-proxied (remaining proxied)
   (if (null remaining)
@@ -81,9 +84,11 @@ to the parent.n"
     (unless (null lineage)
       (build-proxied lineage nil))))
 
-(defun initialize (&optional cred-path)
+(defun initialize (&key cred-path store-path)
   "Conducts the necessary setup to begin using nebula."
   (when cred-path
     (setq *db-creds-path* cred-path))
+  (when store-path
+    (set-store-path store-path))
   (load-credentials)
   (connect))

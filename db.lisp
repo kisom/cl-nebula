@@ -75,6 +75,7 @@
       (postmodern:delete-dao entry)
       (garbage-collect-entry path entry)
       (garbage-collect-references entry)
-      (clear-children entry))))
+      (clear-children entry)
+      t)))
 
 

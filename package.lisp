@@ -3,12 +3,12 @@
 (defpackage #:nebula
   (:use #:cl)
   (:export :set-store-path
-	   :resolve-target
-	   :upload-blob
-	   :entry-info
+	   :retrieve
+	   :store
+	   :info
 	   :proxy
-	   :entry-history
-	   :remove-entry
+	   :lineage
+	   :expunge
 	   :proxy-all
 	   :initialize))
 
