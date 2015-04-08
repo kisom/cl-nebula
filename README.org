@@ -2,10 +2,13 @@
 
 * Introduction
 
-  *Nebula* is a content-addressable file store that uses a capability
-  model for security. This particular version is a development
-  demonstrator that aims to vet the core ideas; it is built on
-  rapidly-prototypable but unscalable practices.
+  *Nebula* is a prototype file store that uses a capability model for
+  security and a content-addressable storage scheme for the underlying
+  data. This particular version is a development demonstrator that
+  aims to vet the core ideas.
+
+  The motivations and general concepts are explained in more depth
+  in [[https://kyleisom.net/blog/2015/04/07/nebula/][this blog post]].
 
 ** What problem are you trying to solve?
 
@@ -32,7 +35,7 @@
       granted *or* unless the other user has their own copy of that
       data.
 
-*tt* Towards a solution
+** Towards a solution
 
    The pieces of such a solution are described below.
 
@@ -150,22 +153,6 @@ Users directly interacting with blobs presents two problems:
     handled by the application using Nebula, allowing them to
     translate the idea of an owner to an appropriate metaphor.
 
-** The API
-
-   + create, update, delete entries
-     + note that garbage collection will need to be done when a user
-       entry is removed: if no other entry refers to a blob, that blob
-       should be removed from the store. If an entry is removed, all
-       entries proxied to that entry should be removed.
-     + update creates a new entry with the parent of the new entry and
-       the children field of the parent updated appropriately. A check
-       should be done to ensure that the blob has actually changed before
-       assigning a new entry.
-   + +create, update, delete, list files+
-   + grant or revoke access
-     + this needs to account for the need to proxy histories
-   + +group creation, inviting, transfer of ownership+
-
 ** A demo use case
 
    A demo of the Nebula system would be to build an HTTP front end
@@ -240,9 +227,120 @@ Users directly interacting with blobs presents two problems:
   initialised with ~(nebula:initialize)~. It will create any tables it
   needs on startup.
 
+* The API
+
+*** initialize
+
+#+BEGIN_EXAMPLE
+Lambda-list: (&KEY CRED-PATH STORE-PATH)
+#+END_EXAMPLE
+
+Conducts the necessary setup to begin using the filestore. If
+~cred-path~ is not ~nil~, it is used as the path to the Postgres
+credentials file (described in the setup section). If ~store-path~
+is not ~nil~, it is used as the path to the blob store.
+
+*** retrieve
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Type: (FUNCTION (STRING) (OR (SIMPLE-ARRAY (UNSIGNED-BYTE 8)) NULL))
+#+END_EXAMPLE
+
+Given a UUID, follow its targets all the way to the underlying
+blob. If the UUID doesn't exist or can't be followed for some reason,
+it returns ~nil~; otherwise, it returns a byte array containing
+underlying blob.
+
+*** store
+
+#+BEGIN_EXAMPLE
+Lambda-list: (DATA &KEY (PARENT NIL))
+Type: (FUNCTION ((OR STRING (SIMPLE-ARRAY (UNSIGNED-BYTE 8)))
+       &KEY (:PARENT (OR STRING NULL)))
+       (OR NULL STRING))
+#+END_EXAMPLE
+
+Store some data, possibly under a parent entry. If ~parent~ is
+not ~nil~ and is a valid UUID, the resulting entry will use ~parent~
+as its parent. Otherwise, an entry with no history will be created.
+
+*** expunge
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Derived type: (FUNCTION (STRING) (BOOLEAN))
+#+END_EXAMPLE
+
+Expunge the entry named by UUID from the system, garbage collecting as
+required.
+
+*** info
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Derived type: (FUNCTION (STRING) (LIST))
+#+END_EXAMPLE
+
+Returns an alist with the keys ~:id~, ~:created~, and ~:parent~,
+filled with the relevant information for the entry named by ~uuid~.
+
+*** lineage
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Derived type: (FUNCTION (STRING) CONS)
+#+END_EXAMPLE
+
+Return a list of entry IDs of this entry's lineage. The ~car~ of this
+list will be current entry, and the last element will be the last
+parent.
+
+*** proxy
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Derived type: (FUNCTION (STRING) (OR STRING NULL)
+#+END_EXAMPLE
+
+Proxy a single entry, removing its history. It returns the identifier
+for this proxied entry.
+
+*** proxy-all
+
+#+BEGIN_EXAMPLE
+Lambda-list: (UUID)
+Derived type: (FUNCTION (STRING) CONS)
+#+END_EXAMPLE
+
+Proxies an entire lineage for an entry. The history is preserved, though
+replaced with the proxied equivalent.
+
 * TODOs, thoughts, and considerations
 
-  This isn't even an alpha right now. This is a development
-  prototype. Things aren't expected to work quite right yet.
+  + Work on additional front-ends
+    + CLOS persistence store?
+    + 9P interface?
+    + An editor for collaborating and working on files over the
+      network? Maybe an object-capable editor?
+  + Blobs are stored insecurely; does this matter? What's a good way
+    to fix this?
+  + Support for trees of history
+  + Resource restrictions
+    + Quotas
+    + File size restrictions
+  + The backends could use some looking at
+    + Support for multiple backends
+    + Options like [[https://common-lisp.net/project/elephant/][elephant]] or [[http://cl-www.msi.co.jp/projects/manardb/][manardb]]
+    + Custom CLOS persistence store
+  + Nebula was designed for use on a single host. What would it look
+    like to distribute this?
+    + Does it make sense to deal with distribution at this level,
+      or is better to do it at the interface level?
+    + What topologies make senes?
+    + Do all the nodes share binary data, or just tell each other
+      which blobs and entries they have?
+    + Namespacing?
+  + The documentation could better introduce the ideas and concepts
+    behind this system.
 
-  For background and some ideas for future work, see [[https://kyleisom.net/blog/2015/04/07/nebula/][this blog post]].
