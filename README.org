@@ -231,8 +231,7 @@ Users directly interacting with blobs presents two problems:
 * Running
 
   Before running the server, the database must be created. In the
-  future, this will be done automatically; in the meantime:
-  To start the server, run
+  future, this will be done automatically. To start the server, run
 
 #+BEGIN_EXAMPLE
 > sbcl --eval '(ql:quickload :nebula)'
