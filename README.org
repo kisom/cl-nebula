@@ -32,7 +32,7 @@
       granted *or* unless the other user has their own copy of that
       data.
 
-** Towards a solution
+*tt* Towards a solution
 
    The pieces of such a solution are described below.
 
@@ -208,7 +208,7 @@ Users directly interacting with blobs presents two problems:
   You will need a Lisp interpreter and [[http://quicklisp.org/][Quicklisp]].
 
   You will need a Postgres database running; the credentials should be
-  in an alist in the file ~$HOME/nebula.lisp~. This alist should look
+  in an alist in the file ~$HOME/.nebula.lisp~. This alist should look
   like
 
 #+BEGIN_EXAMPLE
