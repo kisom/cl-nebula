@@ -1,6 +1,13 @@
 ;;;; package.lisp
 
-(restas:define-module #:nebula
+(defpackage #:nebula
   (:use #:cl)
-  (:export :startup))
+  (:export :set-store-path
+	   :resolve-target
+	   :upload-blob
+	   :entry-info
+	   :proxy
+	   :entry-history
+	   :remove-entry
+	   :proxy-all))
 

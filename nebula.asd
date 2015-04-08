@@ -21,6 +21,5 @@
 	       (:file "blob")
 	       (:file "entry")
 	       (:file "db")
-               (:file "nebula")
-	       (:file "www")))
+               (:file "nebula")))
 

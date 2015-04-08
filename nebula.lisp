@@ -6,6 +6,9 @@
 
 (defvar *nebula-path* "nebula-store")
 
+(defun set-store-path (path)
+  (setq *nebula-path* path))
+
 (defun resolve-target (uuid)
   "Given a UUID, follow its targets all the way to the underlying
 blob."
@@ -77,3 +80,10 @@ to the parent.n"
   (let ((lineage (reverse (entry-history uuid))))
     (unless (null lineage)
       (build-proxied lineage nil))))
+
+(defun initialize (&optional cred-path)
+  "Conducts the necessary setup to begin using nebula."
+  (when cred-path
+    (setq *db-creds-path* cred-path))
+  (load-credentials)
+  (connect))
