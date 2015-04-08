@@ -9,5 +9,6 @@
 	   :proxy
 	   :entry-history
 	   :remove-entry
-	   :proxy-all))
+	   :proxy-all
+	   :initialize))
 
