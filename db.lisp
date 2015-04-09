@@ -17,19 +17,19 @@
   `(value-for *db-creds* ,k))
 
 (defun connect ()
-  (when (and (boundp '*db-creds*)
-	     (not (null postmodern:*database*)))
-    (setq *database*
-	  (postmodern:connect (cred-value :db-name)
-			      (cred-value :db-user)
-			      (cred-value :db-pass)
-			      (cred-value :db-host)
-			      :port (cred-value :db-port)
-			      :pooled-p t))
-    (unless (postmodern:table-exists-p 'entry)
-      (postmodern:create-table 'entry)
-      t)))
-
+  (when (boundp '*db-creds*)
+    (when (boundp 'postmodern:*database*)
+      (postmodern:disconnect postmodern:*database*))
+    (postmodern:with-connection (list (cred-value :db-name)
+				       (cred-value :db-user)
+				       (cred-value :db-pass)
+				       (cred-value :db-host)
+				       :port (cred-value :db-port)
+				       :pooled-p t)
+      (unless (postmodern:table-exists-p 'entry)
+	(postmodern:execute
+	 (postmodern:dao-table-definition 'entry))
+	t))))
 
 (defmacro defun-with-db (name args &body body)
   `(defun ,name ,args
