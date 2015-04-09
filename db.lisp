@@ -48,7 +48,7 @@
 (defun select-by-target (identifier)
   (postmodern:select-dao 'entry (:= 'target identifier)))
 
-(defun garbage-collect-entry (path entry)
+(defun garbage-collect-blob (path entry)
   (when (hash-p (entry-target entry))
     (let ((others (select-by-target (entry-target entry))))
       (when (zerop (length others))
@@ -73,7 +73,7 @@
   (let ((entry (lookup-entry uuid)))
     (unless (null entry)
       (postmodern:delete-dao entry)
-      (garbage-collect-entry path entry)
+      (garbage-collect-blob path entry)
       (garbage-collect-references entry)
       (clear-children entry)
       t)))
