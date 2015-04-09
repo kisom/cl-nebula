@@ -18,14 +18,14 @@ blob."
       (let ((target (entry-target entry)))
 	(cond
 	  ((hash-p target) (read-blob *nebula-path* target))
-	  ((uuid-p target) (resolve-target target))
+	  ((uuid-p target) (retrieve target))
 	  (:t nil))))))
 
 (defun store (data &key parent)
   "Store some data, possibly under a parent entry."
   (when (valid-parent-p parent)
     (let* ((hash  (write-blob *nebula-path* data))
-	   (entry (make-entry hash parent)))
+	   (entry (make-entry hash parent (file-size (hash-path *nebula-path* hash)))))
       (unless (null entry)
 	(store-entry entry)
 	(entry-uuid entry)))))
@@ -34,16 +34,17 @@ blob."
   "Retrieve metadata about an entry."
   (let ((entry (lookup-entry uuid)))
     (unless (null entry)
-      (pairlis '(:id :created :parent)
+      (pairlis '(:id :created :size :parent)
 	       (list (entry-uuid entry)
 		     (entry-created entry)
+		     (entry-size entry)
 		     (entry-parent entry))))))
 
 (defun proxy (uuid)
   "Proxy a single entry."
   (let ((entry (lookup-entry uuid)))
     (unless (null entry)
-      (let ((proxied (proxy-entry entry)))
+      (let ((proxied (proxy-entry entry (entry-size entry))))
 	(store-entry proxied)
 	(entry-uuid proxied)))))
 
@@ -71,7 +72,7 @@ as required."
   (if (null remaining)
       proxied
       (let* ((entry (lookup-entry (first remaining)))
-	     (proxy (proxy-entry entry)))
+	     (proxy (proxy-entry entry (entry-size entry))))
 	(unless (null proxied)
 	  (setf (entry-parent proxy) (first proxied))
 	  (store-entry proxy))
@@ -80,7 +81,7 @@ as required."
 
 (defun proxy-all (uuid)
   "Proxy the entire lineage for an entry."
-  (let ((lineage (reverse (entry-history uuid))))
+  (let ((lineage (reverse (lineage uuid))))
     (unless (null lineage)
       (build-proxied lineage nil))))
 

@@ -283,8 +283,9 @@ Lambda-list: (UUID)
 Derived type: (FUNCTION (STRING) (LIST))
 #+END_EXAMPLE
 
-Returns an alist with the keys ~:id~, ~:created~, and ~:parent~,
-filled with the relevant information for the entry named by ~uuid~.
+Returns an alist with the keys ~:id~, ~:created~, ~:size~, and
+~:parent~, filled with the relevant information for the entry named by
+~uuid~.
 
 *** lineage
 

@@ -44,3 +44,9 @@
   (let ((kv (assoc key alist)))
     (unless (null kv)
       (second kv))))
+
+(defun file-size (path)
+  (if (probe-file path)
+      (with-open-file (file path)
+	(file-length file))
+      0))
