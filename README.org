@@ -228,7 +228,6 @@ Users directly interacting with blobs presents two problems:
   needs on startup.
 
 * The API
-
 *** initialize
 
 #+BEGIN_EXAMPLE
@@ -273,7 +272,9 @@ Derived type: (FUNCTION (STRING) (BOOLEAN))
 #+END_EXAMPLE
 
 Expunge the entry named by UUID from the system, garbage collecting as
-required.
+required. If any other entries have this entry as a parent, their
+parent entry will be cleared. Any proxy entries pointing to this one
+will be removed.
 
 *** info
 
