@@ -5,6 +5,7 @@
   :description "Describe nebula here"
   :author "K. Isom <kyle@metacircular.net>"
   :license "MIT"
+  :version 0.2.0
   :depends-on (#:cl-ppcre
 	       #:cl-who
 	       #:flexi-streams
