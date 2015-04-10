@@ -18,7 +18,8 @@
 
 (defun connect ()
   (when (boundp '*db-creds*)
-    (when (boundp 'postmodern:*database*)
+    (when (and (boundp 'postmodern:*database*)
+	       (not (null postmodern:*database*)))
       (postmodern:disconnect postmodern:*database*))
     (postmodern:with-connection (list (cred-value :db-name)
 				       (cred-value :db-user)
