@@ -1,0 +1,186 @@
+#+TITLE: Nebula introduction
+
+* Introduction
+  
+  This document describes the ideas and motivation behind Nebula.
+
+* What problem are you trying to solve?
+
+   Users have data: they want to be able to keep track of revisions to
+   this data, and they would like to be able to share this data with
+   other users. Users would also like the ability to cluster into
+   groups to share and collaborate on this data.
+
+   Secondary objectives are to build real world experience designing,
+   implementing, and operating capability systems; and to characterise
+   the behaviour of capability systems in the real world.
+
+* What are the characteristics of a solution?
+
+   1. Users must be able to upload and retrieve data.
+   2. Users must be able to view the history of their data.
+   3. Users should be able to share data with other users.
+   4. A user should be able to refer to a piece of data as a leaf in a
+      history tree, as a node in the tree, or as an isolated snapshot
+      with the history information stripped.
+   5. Users should have some assurance as to the integrity and
+      confidentiality of their data: one user should not be able to
+      read another user's file unless permission has been explicitly
+      granted *or* unless the other user has their own copy of that
+      data.
+
+* Towards a solution
+
+   The pieces of such a solution are described below.
+
+** Data blobs
+
+   Data is referred to by the SHA-256 hash of the contents of the
+   file. For technical reasons, this could be prefixed to reside in
+   some directory tree structure. There are two options for this: use
+   a prefix (such as the first *n* bytes of the ID, or where each byte
+   is a directory. Example:
+
+   Example: given the SHA-256 ID
+
+#+BEGIN_EXAMPLE
+000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+#+END_EXAMPLE
+
+
+   The first solution (with a prefix of 4) yields the path
+
+#+BEGIN_EXAMPLE
+0001/02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
+#+END_EXAMPLE
+
+   The second yields
+
+#+BEGIN_EXAMPLE
+00/01/02/03/04/05/06/07/08/09/0a/0b/0c/0d/0e/0f/10/11/12/13/14/15/16/17/\
+18/19/1a/1b/1c/1d/1e/1f
+#+END_EXAMPLE
+
+    From a file system performance perspective, the two options are
+    equally difficult to implement, and the latter will provide better
+    performance. As data will always be referenced by a SHA-256 hash
+    (a constraint that **must** be enforced in the code), this should
+    not be a problem.
+
+** References to blobs
+
+Users directly interacting with blobs presents two problems:
+
+1. Information leakage: if Alice wants to determine if someone already
+   has a copy of some data, she attempts to read its SHA-256
+   digest. The server will return the data if she has it. This data is
+   of no consequence to Alice, as she likely already had a copy of the
+   data to produce the hash.
+2. Managing data is more difficult: in the case where a user asks the
+   server to delete a file that multiple users have, the server has no
+   way to determine what other users might have the data. One user can
+   then remove data that other users may still wish to
+   retain. Alternatively, the server might refuse to delete this data,
+   which means users have no way to remove data from the system.
+
+   The solution is to only access blob IDs in the software, and to
+   provide users with UUIDs to reference their data. A UUID contains
+
+   + the ID
+   + the referenced object ID (see below, this may be a SHA-256 ID or
+     another UUID)
+   + metadata
+   + the parent UUID
+   + UUIDs of any children
+
+   In order to provide useful access control, a reference may be
+   a *proxy* reference: that is, it may refer to another blob
+   reference. This means that a user can grant revocable access to the
+   data *without* jeopardizing their own access.
+
+   Therefore, to know an ID is to have access to that ID. For this
+   reason, users can only see the metadata and none of the IDs. The
+   system needs an API that can traverse the history tree without
+   exposing these IDs to users. Proxy objects either need to be
+   presented with no history information (empty parent and children),
+   or the entire history needs to be proxied. Similarly, a revocation
+   API needs to be able to take into account that the entire history
+   tree may be proxied.
+
+   This data must be persisted, such as a via a database.
+
+   This reference is named an *entry*. This reference is the only
+   interface users have with blobs. A user should never see the target
+   of an entry, nor should they be able to determine whether an ID was
+   proxied.
+
+** Named histories
+
+    Constantly referring to a UUID for file revisions is something
+    that users will find awkward. A useful abstraction is a named
+    history: presenting a single reference to a history tree that
+    always provides the newest copy of some data, while still allowing
+    users to traverse the history. This abstraction needs to pair some
+    notion of the owner with a name of their choosing; this pairing is
+    termed a *file*. Writing to a file creates a new entry with the
+    parent set to the file's current reference, and the file's
+    reference is updated to the new entry's ID.
+
+    This might best be handled by the application using Nebula, which
+    can translated the entry to an appropriate storage metaphor.
+
+** Users
+
+    Users will be identified by a UUID, as will collections of users
+    (termed a *group*). This allows groups and users to be
+    interchangeable.
+
+    *Challenge*: how to deal with removing a user from a group? To know
+    an ID is to have access to the ID, so new IDs will need to be
+    generated for each object owned by a group; this change will need to
+    be communicated to the group. Groups are not granular at this time:
+    access to a group ID means all users can read or write entries and
+    files. Group leadership will probably belong to a single user. This a
+    subject that should be considered for revision in future.
+
+    The subject of groups and user management is also probably best
+    handled by the application using Nebula, allowing them to
+    translate the idea of an owner to an appropriate metaphor.
+
+* A demo use case
+
+   A demo of the Nebula system would be to build an HTTP front end
+   that uses [[https://codemirror.org/][Codemirror]] to implement a collaborative editor.
+
+* Sync
+
+   At some point it would be advantageous to sync data. Armstrong
+   [[http://joearms.github.io/2015/03/12/The_web_of_names.html][proposes]] the use of a DHT. However, implementing sync in this
+   manner means that any participating node has access to all the
+   blobs where no guarantee is made that peers are securing this data;
+   this presents a large hole for data leakage. Participating
+   nodes **must** have some sort of authentication. The most
+   straight-forward mechanism for this is to communicate over an
+   interface such as [[https://kyleisom.net/projects/schannel/][schannel]] with mutual authentication. This brings
+   the complexity of requiring a signature authority trusted by all
+   users. A synchronisation mechanism must operate in a hostile
+   environment:
+
+   + At the core, user data *must* be protected: just as users expect
+     their data to remain secure on the single node system, so too should
+     their data be secured across all nodes.
+   + A participant should expect that some participants are actively
+     trying to exploit data leakage.
+   + Participants must have strong mutual authentication, which implies
+     strong identity. Nodes may be pseudonymous, but they cannot be fully
+     anonymous. Peer reputation is a necessity.
+   + Communications **must** occur over a secure channel (see
+     *Cryptography Engineering* or `schannel`).
+   + Alternate (not schannel) alternatives should be explored. One
+     alternative is hosts identified by a UUID and using remote
+     attestation or another form of TPM-based
+     authentication. Particularly interesting would be decentralised
+     authentication and attestation, but it is difficult to see how trust
+     could be bootstrapped this way.
+
+
