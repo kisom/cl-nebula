@@ -11,7 +11,7 @@
   [[https://kyleisom.net/blog/2015/04/07/nebula/][this blog post]]. The [[intro.org]] file in this repo contains additional
   description of the problem.
 
-  The [[https://metacircular.net/projects/nebula/][project homepage]] may also be useful.
+  The [[http://metacircular.net/projects/nebula/][project homepage]] may also be useful.
 
 * Prerequisites
 
