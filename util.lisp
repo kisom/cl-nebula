@@ -50,3 +50,9 @@
       (with-open-file (file path)
 	(file-length file))
       0))
+
+(defun purge-top (path top)
+  (unless (equalp path top)
+    (and (null (uiop:directory-files path))
+	 (delete-empty-directory path)
+	 (purge-top (uiop:pathname-parent-directory-pathname path)))))
