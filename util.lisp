@@ -8,8 +8,9 @@
 (defun string-emptyp (s)
     (equal 0 (length s)))
 
-(defun read-file (path)
+(defun read-file (path &rest args)
   "Read a file as unsigned bytes."
+  (declare (ignore args))
   (with-open-file (stream path
 			  :element-type '(unsigned-byte 8))
     (let ((data (make-sequence '(vector (unsigned-byte 8)) (file-length stream))))
@@ -51,8 +52,3 @@
 	(file-length file))
       0))
 
-(defun purge-top (path top)
-  (unless (equalp path top)
-    (and (null (uiop:directory-files path))
-	 (delete-empty-directory path)
-	 (purge-top (uiop:pathname-parent-directory-pathname path)))))

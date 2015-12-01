@@ -2,7 +2,7 @@
 
 (asdf:defsystem #:nebula
   :serial t
-  :description "Describe nebula here"
+  :description "Capability-based file store"
   :author "K. Isom <kyle@metacircular.net>"
   :license "MIT"
   :version 0.2.0
@@ -16,6 +16,7 @@
 	       #:swank
 	       #:restas
 	       #:st-json
+	       #:uiop
 	       #:uuid)
   :components ((:file "package")
 	       (:file "util")

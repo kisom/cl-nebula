@@ -35,8 +35,22 @@
   `(defun ,name (parent digest)
      (let ((path (hash-path parent digest)))
        (when (probe-file path)
-	 (funcall ,action path)))))
+	 (funcall ,action path parent)))))
+
+(defun purge-top (path top)
+  (unless (equalp path top)
+    (and (null (uiop:directory-files path))
+	 (uiop:delete-empty-directory path)
+	 (purge-top (uiop:pathname-parent-directory-pathname path) top))))
+
+(defun purge-file (path parent)
+  (delete-file path)
+  (purge-top (uiop:pathname-directory-pathname path)
+	     (pathname (concatenate 'string parent "/"))))
 
 (define-file-action read-blob #'read-file)
-(define-file-action delete-blob #'delete-file)
+(define-file-action delete-blob #'purge-file)
+
+
+
 
